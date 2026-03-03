@@ -1,0 +1,444 @@
+openapi: 3.0.3
+info:
+  title: Gravity PMS API
+  description: Enterprise Project Management System — REST API v1
+  version: 1.0.0
+  contact:
+    name: Gravity Platform
+    email: admin@gravity.io
+servers:
+  - url: http://localhost:3001/api/v1
+    description: Local development
+  - url: https://api.gravity.io/api/v1
+    description: Production
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string }
+    Success:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data: { type: object }
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  timestamp: { type: string }
+                  version: { type: string }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Tokens + user info
+        '401':
+          description: Invalid credentials
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: New access token
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: Logged out
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      responses:
+        '200':
+          description: Current user profile
+
+  /projects:
+    get:
+      tags: [Projects]
+      summary: List projects
+      parameters:
+        - in: query
+          name: type
+          schema: { type: string, enum: [closed, open] }
+      responses:
+        '200':
+          description: Project list
+    post:
+      tags: [Projects]
+      summary: Create project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, start_date, type]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                pm_id: { type: string, format: uuid }
+                start_date: { type: string, format: date }
+                end_date: { type: string, format: date }
+                type: { type: string, enum: [closed, open] }
+                member_ids: { type: array, items: { type: string, format: uuid } }
+      responses:
+        '201':
+          description: Created project
+
+  /projects/{id}:
+    get:
+      tags: [Projects]
+      summary: Get project by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Project detail with members
+    put:
+      tags: [Projects]
+      summary: Update project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated project
+    delete:
+      tags: [Projects]
+      summary: Delete project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Deleted
+
+  /sprints/project/{projectId}:
+    get:
+      tags: [Sprints]
+      summary: Get sprints by project
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sprint list
+
+  /sprints/{id}:
+    get:
+      tags: [Sprints]
+      summary: Get sprint by ID with tasks
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sprint detail
+
+  /sprints/migrate:
+    post:
+      tags: [Sprints]
+      summary: Migrate task between sprints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [taskId, fromSprintId, toSprintId, reason]
+              properties:
+                taskId: { type: string, format: uuid }
+                fromSprintId: { type: string, format: uuid }
+                toSprintId: { type: string, format: uuid }
+                reason: { type: string, minLength: 10 }
+      responses:
+        '200':
+          description: Migrated
+
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks with filters
+      parameters:
+        - in: query
+          name: projectId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: sprintId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema: { type: string, enum: [todo, in_progress, done] }
+        - in: query
+          name: priority
+          schema: { type: string, enum: [low, medium, high, critical] }
+      responses:
+        '200':
+          description: Task list
+    post:
+      tags: [Tasks]
+      summary: Create task
+      responses:
+        '201':
+          description: Created task
+
+  /tasks/{id}:
+    get:
+      tags: [Tasks]
+      summary: Get task with comments, attachments, history
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Task detail
+    put:
+      tags: [Tasks]
+      summary: Update task (status, assignee, etc.)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Updated
+    delete:
+      tags: [Tasks]
+      summary: Delete task
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Deleted
+
+  /tasks/{id}/comments:
+    post:
+      tags: [Tasks]
+      summary: Add comment to task
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+                is_qa: { type: boolean, default: false }
+      responses:
+        '201':
+          description: Comment created
+
+  /tasks/{id}/attachments:
+    post:
+      tags: [Tasks]
+      summary: Upload attachment to task
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Attachment uploaded
+
+  /team:
+    get:
+      tags: [Team]
+      summary: List team members
+      responses:
+        '200':
+          description: User list
+    post:
+      tags: [Team]
+      summary: Create team member
+      responses:
+        '201':
+          description: Created
+
+  /scrum-events:
+    get:
+      tags: [Scrum Events]
+      summary: List scrum events
+      responses:
+        '200':
+          description: Event list
+    post:
+      tags: [Scrum Events]
+      summary: Create scrum event
+      responses:
+        '201':
+          description: Created
+
+  /documents:
+    get:
+      tags: [Documents]
+      summary: List documents
+      responses:
+        '200':
+          description: Document list
+    post:
+      tags: [Documents]
+      summary: Create document
+      responses:
+        '201':
+          description: Created
+
+  /documents/template/{type}:
+    get:
+      tags: [Documents]
+      summary: Get document template (qa or hu)
+      parameters:
+        - in: path
+          name: type
+          required: true
+          schema: { type: string, enum: [qa, hu] }
+      responses:
+        '200':
+          description: Template markdown
+
+  /metrics/dashboard:
+    get:
+      tags: [Metrics]
+      summary: Get dashboard metrics
+      parameters:
+        - in: query
+          name: projectId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: sprintId
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Dashboard data with burndown, velocity, productivity
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Get my notifications
+      responses:
+        '200':
+          description: Notification list
+
+  /notifications/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark notifications as read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids: { type: array, items: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Marked as read
+
+  /notifications/read-all:
+    patch:
+      tags: [Notifications]
+      summary: Mark all notifications as read
+      responses:
+        '200':
+          description: All read
