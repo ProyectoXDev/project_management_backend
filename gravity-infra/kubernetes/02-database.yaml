@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gravity-postgres
+  namespace: gravity
+spec:
+  serviceName: gravity-postgres-svc
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gravity-postgres
+  template:
+    metadata:
+      labels:
+        app: gravity-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_DB
+              value: gravity_db
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: gravity-secrets
+                  key: db-user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gravity-secrets
+                  key: db-password
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "gravity_user", "-d", "gravity_db"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gravity-postgres-svc
+  namespace: gravity
+spec:
+  selector:
+    app: gravity-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gravity-redis
+  namespace: gravity
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gravity-redis
+  template:
+    metadata:
+      labels:
+        app: gravity-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gravity-redis-svc
+  namespace: gravity
+spec:
+  selector:
+    app: gravity-redis
+  ports:
+    - port: 6379
+      targetPort: 6379

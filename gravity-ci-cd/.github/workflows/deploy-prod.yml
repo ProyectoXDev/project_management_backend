@@ -1,0 +1,32 @@
+name: Deploy — Production
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name gravity-eks --region us-east-1
+      - name: Deploy to K8s production namespace
+        run: |
+          kubectl set image deployment/gravity-backend backend=ghcr.io/${{ github.repository_owner }}/gravity-backend:${{ github.ref_name }} -n gravity
+          kubectl set image deployment/gravity-frontend frontend=ghcr.io/${{ github.repository_owner }}/gravity-frontend:${{ github.ref_name }} -n gravity
+          kubectl rollout status deployment/gravity-backend -n gravity --timeout=300s
+          kubectl rollout status deployment/gravity-frontend -n gravity --timeout=300s
+      - name: Notify on failure
+        if: failure()
+        run: |
+          kubectl rollout undo deployment/gravity-backend -n gravity
+          kubectl rollout undo deployment/gravity-frontend -n gravity
+          echo "❌ Deploy failed — rollback triggered"

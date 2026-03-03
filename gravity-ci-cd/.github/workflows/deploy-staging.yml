@@ -1,0 +1,25 @@
+name: Deploy — Staging
+
+on:
+  push:
+    branches: [staging]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name gravity-eks --region us-east-1
+      - name: Deploy to K8s staging namespace
+        run: |
+          kubectl set image deployment/gravity-backend backend=ghcr.io/${{ github.repository_owner }}/gravity-backend:${{ github.sha }} -n gravity-staging
+          kubectl set image deployment/gravity-frontend frontend=ghcr.io/${{ github.repository_owner }}/gravity-frontend:${{ github.sha }} -n gravity-staging
+          kubectl rollout status deployment/gravity-backend -n gravity-staging --timeout=120s
+          kubectl rollout status deployment/gravity-frontend -n gravity-staging --timeout=120s

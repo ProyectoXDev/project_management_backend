@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gravity-backend
+  namespace: gravity
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gravity-backend
+  template:
+    metadata:
+      labels:
+        app: gravity-backend
+    spec:
+      containers:
+        - name: backend
+          image: gravity-backend:latest
+          ports:
+            - containerPort: 3001
+          envFrom:
+            - secretRef:
+                name: gravity-backend-secrets
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 3001
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gravity-backend
+  namespace: gravity
+spec:
+  selector:
+    app: gravity-backend
+  ports:
+    - port: 3001
+      targetPort: 3001
