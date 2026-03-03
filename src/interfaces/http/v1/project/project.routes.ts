@@ -13,12 +13,13 @@ router.use(authenticate);
 router.get('/', ctrl.getAll.bind(ctrl));
 router.get('/:id', ctrl.getById.bind(ctrl));
 router.post('/',
-  authorize('admin','pm'),
-  [body('name').notEmpty(), body('start_date').isDate(), body('type').isIn(['closed','open'])],
-  validate, auditLog('CREATE','project'),
+  authorize('admin', 'pm'),
+  [body('name').notEmpty(), body('start_date').isDate(), body('type').isIn(['closed', 'open'])],
+  validate, auditLog('CREATE', 'project'),
   ctrl.create.bind(ctrl)
 );
-router.put('/:id', authorize('admin','pm'), auditLog('UPDATE','project'), ctrl.update.bind(ctrl));
-router.delete('/:id', authorize('admin'), auditLog('DELETE','project'), ctrl.delete.bind(ctrl));
+router.put('/:id', authorize('admin', 'pm'), auditLog('UPDATE', 'project'), ctrl.update.bind(ctrl));
+router.patch('/:id/reactivate', authorize('admin', 'pm'), auditLog('UPDATE', 'project'), ctrl.reactivate.bind(ctrl));
+router.delete('/:id', authorize('admin'), auditLog('DELETE', 'project'), ctrl.delete.bind(ctrl));
 
 export default router;
